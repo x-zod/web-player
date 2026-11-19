@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IPTV</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Helvetica Neue',Arial,sans-serif}
+body{background:#141414;color:#fff;padding:20px;max-width:1400px;margin:0 auto;min-height:100vh}
+h1{text-align:center;margin-bottom:16px;font-size:22px;font-weight:500}
+.container{display:grid;grid-template-columns:180px 200px 1fr;gap:16px;height:calc(100vh - 100px)}
+@media(max-width:900px){
+  .container{grid-template-columns:1fr;grid-template-rows:auto auto 1fr}
+}
+.col{background:#1c1c1c;border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
+.col h3{padding:10px 14px;border-bottom:1px solid #333;font-size:15px}
+.list{flex:1;overflow-y:auto}
+.item{padding:10px 14px;border-bottom:1px solid #282828;cursor:pointer;transition:0.2s}
+.item:hover{background:#272727}
+.item.active{background:#334466}
+.player-wrap{display:flex;flex-direction:column;gap:10px}
+#video{width:100%;background:#000;border-radius:8px;display:block}
+#tip{color:#aaa;font-size:14px;min-height:20px;text-align:center}
+</style>
+</head>
+<body>
+<h1>IPTV</h1>
+<div class="container">
+  <div class="col">
+    <h3>分组</h3>
+    <div id="groupList" class="list"></div>
+  </div>
+  <div class="col">
+    <h3>频道</h3>
+    <div id="channelList" class="list"></div>
+  </div>
+  <div class="player-wrap">
+    <div id="tip"></div>
+    <video id="video" controls></video>
+  </div>
+</div>
+
+<script>
+const video = document.getElementById('video');
+const groupListEl = document.getElementById('groupList');
+const channelListEl = document.getElementById('channelList');
+const tip = document.getElementById('tip');
+let hls = null;
+let selectedGroupIdx = -1;
+let selectedChIdx = -1;
+let groupData = [];
+
+function destroyHls(){
+  if(hls){
+    hls.destroy();
+    hls = null;
+  }
+}
+
+// 解析标准iptv m3u，提取 group-title、频道名、播放地址
+function parseM3u(text){
+  const result = [];
+  const lines = text.split(/\r?\n/);
+  let currentGroup = "默认分组";
+  let channelName = "";
+  let url = "";
+
+  for(let i=0; i<lines.length; i++){
+    const line = lines[i].trim();
+    if(!line) continue;
+    if(line.startsWith("#EXTM3U")) continue;
+
+    if(line.startsWith("#EXTINF:")){
+      // 提取group-title
+      const gMatch = line.match(/group-title="([^"]+)"/);
+      if(gMatch) currentGroup = gMatch[1];
+      // 提取频道名称，逗号后面
+      const nameMatch = line.match(/,(.+)$/);
+      channelName = nameMatch ? nameMatch[1] : "未知频道";
+    }else if(!line.startsWith("#")){
+      url = line;
+      // 找分组是否已经存在
+      let group = result.find(g=>g.groupName === currentGroup);
+      if(!group){
+        group = {groupName:currentGroup, channels:[]};
+        result.push(group);
+      }
+      group.channels.push({name:channelName, url:url});
+      channelName = "";
+      url = "";
+    }
+  }
+  return result;
+}
+
+function renderGroups(){
+  groupListEl.innerHTML = "";
+  groupData.forEach((g, idx)=>{
+    const div = document.createElement('div');
+    div.className = "item" + (idx===selectedGroupIdx?" active":"");
+    div.innerText = g.groupName;
+    div.onclick = ()=>selectGroup(idx);
+    groupListEl.appendChild(div);
+  })
+}
+
+function renderChannels(){
+  channelListEl.innerHTML = "";
+  if(selectedGroupIdx <0) return;
+  const chs = groupData[selectedGroupIdx].channels;
+  chs.forEach((ch, idx)=>{
+    const div = document.createElement('div');
+    div.className = "item" + (idx===selectedChIdx?" active":"");
+    div.innerText = ch.name;
+    div.onclick = ()=>playChannel(idx);
+    channelListEl.appendChild(div);
+  })
+}
+
+function selectGroup(idx){
+  selectedGroupIdx = idx;
+  selectedChIdx = -1;
+  destroyHls();
+  video.src = "";
+  tip.textContent = "";
+  renderGroups();
+  renderChannels();
+}
+
+function playChannel(idx){
+  if(selectedGroupIdx <0) return;
+  const chs = groupData[selectedGroupIdx].channels;
+  if(idx <0 || idx >= chs.length) return;
+  selectedChIdx = idx;
+  const ch = chs[idx];
+  destroyHls();
+  tip.textContent = `加载：${ch.name}`;
+  renderGroups();
+  renderChannels();
+  const src = ch.url;
+  if(Hls.isSupported()){
+    hls = new Hls();
+    hls.loadSource(src);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED,()=>{
+      tip.textContent = `播放：${ch.name}`;
+      video.play();
+    })
+    hls.on(Hls.Events.ERROR, (e,data)=>{
+      tip.textContent = `失败：${data.details}`;
+    })
+  }else if(video.canPlayType('application/vnd.apple.mpegurl')){
+    video.src = src;
+    video.play();
+    tip.textContent = `播放：${ch.name}`;
+  }else{
+    tip.textContent = "浏览器不支持HLS";
+  }
+}
+
+// 拉取同目录下 tv.m3u
+async function loadM3u(){
+  try{
+    const res = await fetch("./tv.m3u");
+    if(!res.ok) throw new Error("读取tv.m3u失败");
+    const text = await res.text();
+    groupData = parseM3u(text);
+    renderGroups();
+    renderChannels();
+    tip.textContent = "加载频道列表完成";
+  }catch(err){
+    tip.textContent = "读取tv.m3u出错：" + err.message;
+    console.error(err);
+  }
+}
+
+loadM3u();
+</script>
+</body>
+</html>
