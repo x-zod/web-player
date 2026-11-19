@@ -11,5 +11,5 @@
 
 ## 项目文件结构
 ├── index.html    # 播放器主页面
-├── zod-tv.m3u    # IPTV节目清单
+├── tv.m3u    # IPTV节目清单
 └── README.md     # 项目说明
