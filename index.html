@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>IPTV 播放器</title>
+<title>Zod-IPTV</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
 <style>
 :root{--bg:#141414;--panel:#1c1c1c;--accent:#3d6bd6;--muted:#999}
@@ -25,9 +25,25 @@ h1 small{color:var(--muted);font-weight:400;font-size:12px}
 
 /* ---------- 源设置区 ---------- */
 #sourcePanel{flex:0 0 auto}
-.top-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:0 12px 8px}
+.top-row{display:grid;grid-template-columns:0.5fr 1fr 1fr 1fr;gap:10px;padding:0 12px 8px}
 .top-row input{width:100%;padding:9px 12px;border:1px solid #2a2a2a;border-radius:8px;background:var(--panel);color:#fff;outline:none;font-size:13px}
 .top-row input:focus{border-color:#3a5ea8}
+.top-row .proxy-input{color:#d8d8d8;font-size:12.5px}
+.top-row .field{display:flex;flex-direction:column;gap:3px;min-width:0}
+.top-row .field label{font-size:10.5px;color:#7d8794;padding-left:2px;letter-spacing:.02em;cursor:pointer}
+
+/* 可选 CORS 代理（第三方源基本都不给跨域头，浏览器直连会被拦） */
+
+/* 下拉预设 + 可自由编辑 */
+.combo{display:flex;align-items:center;gap:6px;min-width:0}
+.combo input{flex:1 1 auto;min-width:0}
+.combo-btn{flex:0 0 auto;width:28px;height:28px;padding:0;border:1px solid #2a2a2a;border-radius:7px;background:#1d1d1d;color:#9aa3ad;font-size:12px;line-height:1;cursor:pointer}
+.combo-btn:hover{color:#fff;border-color:#3a5ea8}
+#comboPop{position:fixed;z-index:1200;display:none;min-width:230px;max-width:min(520px,92vw);max-height:46vh;overflow:auto;padding:4px;background:#151515;border:1px solid #333;border-radius:9px;box-shadow:0 12px 28px rgba(0,0,0,.6)}
+#comboPop.on{display:block}
+.combo-opt{display:block;width:100%;padding:8px 10px;border:0;border-radius:6px;background:none;color:#cfd3d8;text-align:left;font-size:12.5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.combo-opt:hover,.combo-opt.act{background:#26364f;color:#fff}
+.combo-opt span{display:block;color:#7d8794;font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
 
 .btn-row{display:flex;flex-wrap:wrap;gap:8px;padding:0 12px 10px}
 .btn-row button{flex:1 1 108px;padding:9px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;transition:filter .15s}
@@ -36,7 +52,7 @@ h1 small{color:var(--muted);font-weight:400;font-size:12px}
 .btn-row button.ghost:hover{background:#343434}
 
 /* ---------- 主体 ---------- */
-.main-wrap{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:12px;flex:1;padding:0 12px 12px;min-height:0;min-width:0}
+.main-wrap{display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr) minmax(0,300px);gap:12px;flex:1;padding:0 12px 12px;min-height:0;min-width:0}
 
 #sidebar{background:var(--panel);border-radius:8px;overflow-y:auto;overflow-x:hidden;min-height:0;-webkit-overflow-scrolling:touch}
 .drawer-top{display:none}
@@ -75,10 +91,18 @@ h1 small{color:var(--muted);font-weight:400;font-size:12px}
 #tip{flex:1;color:#bbb;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #nextSourceBtn{display:none;padding:4px 10px;border:1px solid #37527f;background:#23304a;color:#9fc0ff;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap}
 #nextSourceBtn:hover{background:#2c3d5c}
+#switchProxyBtn{display:none;padding:4px 10px;border:1px solid #7a5a20;background:#3a2f14;color:#ffcf7a;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap}
+#switchProxyBtn:hover{background:#4a3c1a}
 .kbd-hint{color:#5f5f5f;font-size:11.5px;white-space:nowrap}
 
-#epgInfo{background:#202020;padding:9px 12px;border-radius:8px;font-size:13px;color:#d5d5d5;line-height:1.5;min-width:0;min-height:1.5em}
-#epgList{position:relative;max-height:132px;overflow-y:auto;background:#181818;border-radius:8px;padding:4px 5px;min-width:0}
+/* 右侧节目单面板 */
+#epgPanel{display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0;background:var(--panel);border-radius:8px;padding:10px 10px 8px}
+.epg-head{display:flex;align-items:center;gap:8px;font-size:12px;color:#8a939e;letter-spacing:.02em}
+.epg-head span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.epg-head i{font-style:normal;color:#5f6b7a;font-size:11px}
+
+#epgInfo{background:#202020;padding:9px 12px;border-radius:8px;font-size:12.5px;color:#d5d5d5;line-height:1.5;min-width:0}
+#epgList{flex:1;min-height:0;overflow-y:auto;background:#181818;border-radius:8px;padding:4px 5px;min-width:0;-webkit-overflow-scrolling:touch}
 .epg-item{display:flex;gap:10px;padding:4px 6px;font-size:12.5px;color:#a8a8a8;border-bottom:1px solid #232323}
 .epg-item:last-child{border-bottom:none}
 .epg-time{flex:0 0 auto;color:#787878;font-variant-numeric:tabular-nums}
@@ -138,6 +162,8 @@ h1 small{color:var(--muted);font-weight:400;font-size:12px}
 
   .player-wrap{gap:6px}
   .video-box{border-radius:6px}
+  #epgPanel{display:block;background:none;padding:0;gap:6px;min-height:0}
+  .epg-head{display:none}
   #epgInfo{font-size:12.5px;padding:8px 10px;position:relative;padding-right:26px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
   #epgInfo::after{content:'';position:absolute;right:12px;top:50%;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid #888;transform:translateY(-50%);transition:transform .2s}
   #epgInfo.epg-open::after{transform:translateY(-50%) rotate(180deg)}
@@ -159,7 +185,7 @@ h1 small{color:var(--muted);font-weight:400;font-size:12px}
 </head>
 <body>
 <div class="title-bar">
-  <h1>IPTV 播放器 <small>收藏 · 多线路换源 · EPG 高亮</small></h1>
+  <h1>Zod-IPTV</h1>
   <div class="mobile-tools">
     <span id="nowPlaying">未选择频道</span>
     <button id="drawerBtn" type="button">☰ 频道</button>
@@ -170,9 +196,31 @@ h1 small{color:var(--muted);font-weight:400;font-size:12px}
 
 <div id="sourcePanel">
   <div class="top-row">
-    <input id="searchInput" placeholder="🔍 搜索频道名称">
-    <input id="m3uInput" placeholder="M3U 源地址（留空则只刷新 EPG）">
-    <input id="epgInput" placeholder="EPG 源地址（xmltv，可留空）">
+    <div class="field">
+      <label for="searchInput">频道搜索</label>
+      <input id="searchInput" placeholder="关键词">
+    </div>
+    <div class="field">
+      <label for="m3uInput">直播源地址</label>
+      <div class="combo">
+        <input id="m3uInput" placeholder="m3u / m3u8 地址，留空只刷节目单" autocomplete="off">
+        <button class="combo-btn" type="button" data-combo="m3uInput" title="选择预设源">▾</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="epgInput">节目单地址</label>
+      <div class="combo">
+        <input id="epgInput" placeholder="xmltv 地址，可留空" autocomplete="off">
+        <button class="combo-btn" type="button" data-combo="epgInput" title="选择预设节目单">▾</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="proxyInput">代理地址</label>
+      <div class="combo">
+        <input id="proxyInput" class="proxy-input" placeholder="CORS 代理，可留空" autocomplete="off">
+        <button class="combo-btn" type="button" data-combo="proxyInput" title="选择预设代理">▾</button>
+      </div>
+    </div>
   </div>
   <div class="btn-row">
     <button id="loadSourceBtn">加载源</button>
@@ -201,11 +249,15 @@ h1 small{color:var(--muted);font-weight:400;font-size:12px}
     <div class="play-bar">
       <span id="tip">准备就绪</span>
       <button id="nextSourceBtn" type="button">换线路</button>
+      <button id="switchProxyBtn" type="button">改用本机代理</button>
       <span class="kbd-hint">↑↓ 切台 · M 静音 · F 全屏</span>
     </div>
+  </div>
+  <aside id="epgPanel">
+    <div class="epg-head"><span>节目单</span><i>EPG</i></div>
     <div id="epgInfo">EPG 未加载</div>
     <div id="epgList"></div>
-  </div>
+  </aside>
 </div>
 
 <script>
@@ -223,7 +275,9 @@ var searchInput = $('searchInput');
 var drawerSearch = $('drawerSearch');
 var m3uInput = $('m3uInput');
 var epgInput = $('epgInput');
+var proxyInput = $('proxyInput');
 var nextSourceBtn = $('nextSourceBtn');
+var switchProxyBtn = $('switchProxyBtn');
 var playerWrap = $('playerWrap');
 var videoBox = $('videoBox');
 var sourcePanel = $('sourcePanel');
@@ -233,6 +287,26 @@ var nowPlayingEl = $('nowPlaying');
 /* ================= 配置 ================= */
 var DEFAULT_M3U = 'https://guovin.github.io/iptv-api/result.m3u';
 var DEFAULT_EPG = 'https://epg.zsdc.eu.org/t.xml';
+var DEFAULT_PROXY = 'https://iptv-api.x-zod.online';
+
+// 三个输入框的下拉预设：选中即填入，直接打字也能覆盖（手输优先）
+var COMBO_PRESETS = {
+  m3uInput: [
+    { v:'https://guovin.github.io/iptv-api/result.m3u', t:'默认源 · guovin IPTV-API（含 CCTV/卫视，多为 82/88 端口）' },
+    { v:'https://iptv-org.github.io/iptv/index.m3u', t:'备用源 · iptv-org 全球清单（境外频道多）' },
+    { v:'', t:'清空 · 只刷新 EPG，不重载频道' }
+  ],
+  epgInput: [
+    { v:'https://epg.zsdc.eu.org/t.xml', t:'默认 EPG · epg.zsdc.eu.org（国内频道较全）' },
+    { v:'https://epg.pw/xmltv/epg.xml', t:'备用 EPG · epg.pw（全球，文件偏大）' },
+    { v:'', t:'清空 · 不加载节目单' }
+  ],
+  proxyInput: [
+    { v:'https://iptv-api.x-zod.online', t:'Cloudflare Worker · 走云端出口（80/443 等端口可用，82/88 会被挡）' },
+    { v:'http://127.0.0.1:8787/proxy', t:'本机代理 · node local-proxy.js（国内出口，全部端口可用）' },
+    { v:'', t:'不使用代理 · 仅适用于源站自带 CORS 的流' }
+  ]
+};
 
 // 兜底别名：先按 EPG display-name 归一化匹配，匹配不上才用这张表
 var CHANNEL_ALIAS = {
@@ -247,8 +321,45 @@ var CHANNEL_ALIAS = {
 
 var STORE = {
   m3u:'iptv_v2_m3u', epg:'iptv_v2_epg', last:'iptv_v2_last',
-  fav:'iptv_v2_fav', vol:'iptv_v2_vol', muted:'iptv_v2_muted', expanded:'iptv_v2_expanded'
+  fav:'iptv_v2_fav', vol:'iptv_v2_vol', muted:'iptv_v2_muted', expanded:'iptv_v2_expanded',
+  proxy:'iptv_v2_proxy'
 };
+
+/* ================= CORS 代理 ================= */
+function getProxy(){
+  var v = localStorage.getItem(STORE.proxy);
+  if(v === null) return DEFAULT_PROXY;   // 首次打开默认走 Cloudflare Worker
+  return (v || '').trim();
+}
+// 把流地址套进代理：https://worker.example.com/?u=<encodeURIComponent(原地址)>
+// 注意：清单经代理取回时，里面的地址已经被代理重写过一遍，这里先还原再套，避免套两层
+function unwrapProxyUrl(url){
+  var p = getProxy();
+  if(!p || !url) return url;
+  p = p.replace(/\/+$/, '');
+  var pres = [p + '?u=', p + '/?u='];
+  for(var i = 0; i < pres.length; i++){
+    if(url.indexOf(pres[i]) === 0){
+      try{ return decodeURIComponent(url.slice(pres[i].length)); }catch(e){ return url; }
+    }
+  }
+  return url;
+}
+function viaProxy(url){
+  var p = getProxy();
+  if(!p || !/^https?:/i.test(url)) return url;
+  p = p.replace(/\/+$/, '');
+  var target = unwrapProxyUrl(url) || url;
+  return p + (p.indexOf('?') >= 0 ? '&' : '?') + 'u=' + encodeURIComponent(target);
+}
+// Cloudflare 出站只放行这些端口；源在别的端口（82/88/98…）经 Worker 一定 403
+var CF_PORTS = ['80','8080','8880','2052','2082','2086','2095','443','2053','2083','2087','2096','8443'];
+function portOf(u){
+  try{ var o = new URL(u, location.href); return o.port || (o.protocol === 'https:' ? '443' : '80'); }catch(e){ return ''; }
+}
+function isLocalProxy(p){
+  return /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\]|0\.0\.0\.0)(:|\/|$)/i.test(p || '');
+}
 
 /* ================= 状态 ================= */
 var rawGroupData = [];          // 原始分组数据（只解析一次）
@@ -405,17 +516,29 @@ function rebuildIndex(){
 
 /* ================= 网络请求（含 CORS / 混合内容提示） ================= */
 async function fetchText(url, label){
-  if(/^http:\/\//i.test(url) && location.protocol === 'https:'){
-    throw new Error(label + ' 是 http 地址，当前页面是 https，会被混合内容策略拦截。可改用 http 打开本页，或用“导入本地文件”');
+  var mixed = /^http:\/\//i.test(url) && location.protocol === 'https:';
+  var px = getProxy();
+
+  // 直连优先；失败（被墙 / 无 CORS）再走代理，避免“代理挂了连清单都拿不到”
+  var tries = [];
+  if(!mixed) tries.push({ u: url, via: '直连' });
+  if(px) tries.push({ u: viaProxy(url), via: '代理' });
+
+  if(!tries.length){
+    throw new Error(label + ' 是 http 地址，当前页面是 https 会被混合内容拦截：请填代理，或用“导入本地文件”');
   }
-  var res;
-  try{
-    res = await fetch(url, { cache: 'no-store' });
-  }catch(e){
-    throw new Error(label + ' 请求失败：可能是跨域(CORS)限制、链接失效或网络异常（' + e.message + '）');
+
+  var lastErr = null;
+  for(var i = 0; i < tries.length; i++){
+    try{
+      var res = await fetch(tries[i].u, { cache: 'no-store' });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.text();
+    }catch(e){
+      lastErr = new Error(tries[i].via + '：' + e.message);
+    }
   }
-  if(!res.ok) throw new Error(label + ' 请求返回 HTTP ' + res.status);
-  return await res.text();
+  throw new Error(label + ' 请求失败（直连与代理都不通，' + (lastErr ? lastErr.message : '网络异常') + '）');
 }
 
 /* ================= EPG ================= */
@@ -873,6 +996,7 @@ function attachSource(idx){
   recoveryCount = 0;
   updateSourceBtn();
   stopCurrentStream(false);
+  offerLocalProxy(false);
 
   tip.textContent = '加载：' + ch.name + (ch.sources.length > 1 ? '（线路 ' + (idx + 1) + '/' + ch.sources.length + '）' : '');
 
@@ -880,7 +1004,13 @@ function attachSource(idx){
     onSourceFail('浏览器不能直接播放 FLV 线路');
     return;
   }
+  // https 页面请求 http 流会被混合内容策略直接拦掉，提前给出原因而不是笼统“网络异常”
+  if(location.protocol === 'https:' && /^http:/i.test(url) && !getProxy()){
+    onSourceFail('该线路是 http，https 页面会被混合内容拦截（填代理地址可解决）');
+    return;
+  }
 
+  var playUrl = viaProxy(url);
   var nativeLike = /\.(mp4|m4v|webm|ogg|ogv)(\?|#|$)/i.test(url) || /^blob:/i.test(url);
   var useHls = !nativeLike && window.Hls && Hls.isSupported();
   var manifestOk = false;
@@ -892,7 +1022,7 @@ function attachSource(idx){
       manifestLoadingMaxRetry: 2,
       fragLoadingMaxRetry: 3
     });
-    hls.loadSource(url);
+    hls.loadSource(playUrl);
     hls.attachMedia(video);
 
     hls.on(Hls.Events.MANIFEST_PARSED, function(){
@@ -905,6 +1035,25 @@ function attachSource(idx){
 
     hls.on(Hls.Events.ERROR, function(evt, data){
       if(token !== attachToken || !data || !data.fatal) return;
+      // 上游 403：端口被 Cloudflare 拦、或源站按出口 IP/地域拦云端，两种原因分开说
+      if(data.response && data.response.code === 403){
+        var pf = portOf(unwrapProxyUrl(url));
+        var px = getProxy();
+        var local = isLocalProxy(px);
+        var reason;
+        if(!px){
+          reason = '没走代理，源站直连被拒（多为无 CORS 或按 UA/Referer 拦）';
+        }else if(local){
+          reason = '源站拒绝了本机出口（token 过期或该源已失效）';
+        }else if(CF_PORTS.indexOf(pf) < 0){
+          reason = '端口 ' + pf + ' 不在 Cloudflare 放行端口内（82/88/98 这类基本必挂）';
+        }else{
+          reason = '端口 ' + pf + ' 本身是放行的，是源站按出口 IP/地域拦了 Cloudflare（Worker 出口在境外机房）';
+        }
+        if(px && !local) offerLocalProxy(true);
+        onSourceFail('线路 403：' + reason + (px && !local ? '，走本机宽带出口可绕过' : ''));
+        return;
+      }
       if(recoveryCount < 2){
         recoveryCount++;
         if(data.type === Hls.ErrorTypes.MEDIA_ERROR){
@@ -913,19 +1062,21 @@ function attachSource(idx){
           return;
         }
         if(data.type === Hls.ErrorTypes.NETWORK_ERROR){
-          tip.textContent = '网络异常，重新加载…';
+          tip.textContent = '网络异常（' + (data.details || 'loadError') + '）'
+            + (getProxy() ? '，检查代理是否可用…' : '，多为源站 CORS/失效…');
           hls.startLoad();
           return;
         }
       }
-      onSourceFail('播放失败：' + (data.details || data.type));
+      onSourceFail('播放失败：' + (data.details || data.type)
+        + (data.type === Hls.ErrorTypes.NETWORK_ERROR ? '（跨域或网络）' : ''));
     });
 
     loadTimer = setTimeout(function(){
       if(token === attachToken && !manifestOk) onSourceFail('加载超时（12 秒）');
     }, 12000);
   }else{
-    video.src = url;
+    video.src = playUrl;
     playVideo();
     tip.textContent = '播放：' + ch.name + (ch.sources.length > 1 ? '（线路 ' + (idx + 1) + '/' + ch.sources.length + '）' : '');
     loadTimer = setTimeout(function(){
@@ -950,10 +1101,33 @@ function onSourceFail(msg){
       if(currentChannel === ch && token === attachToken) attachSource(currentSourceIdx + 1);
     }, 800);
   }else{
-    tip.textContent = msg + '。该频道全部线路失败，请换源，或检查 CORS / 混合内容限制';
+    var tail = '。该频道全部线路失败';
+    var px = getProxy();
+    if(!px && /网络|CORS|跨域|超时/.test(msg)) tail += '，浏览器不允许网页直连这些流，通常是源站没给 CORS 头——填一个代理地址即可解决';
+    else if(px && !isLocalProxy(px) && /403/.test(msg)) tail += '。这是源站对 Cloudflare 出口 IP 的拦截（不是端口问题），点“改用本机代理”走本机宽带出口即可';
+    tip.textContent = msg + tail;
     switching = false;
   }
 }
+
+/* Cloudflare 出口被源站 403 时，给个一键切本机代理的入口 */
+function localProxyUrl(){
+  if(/^(127\.0\.0\.1|localhost)$/.test(location.hostname) && location.port === '8787'){
+    return location.origin + '/proxy';
+  }
+  return 'http://127.0.0.1:8787/proxy';
+}
+function offerLocalProxy(show){
+  switchProxyBtn.style.display = show ? 'inline-block' : 'none';
+}
+switchProxyBtn.addEventListener('click', function(){
+  var v = localProxyUrl();
+  proxyInput.value = v;
+  try{ localStorage.setItem(STORE.proxy, v); }catch(e){}
+  offerLocalProxy(false);
+  tip.textContent = '已切到本机代理 ' + v + '，正在重连…';
+  if(currentChannel) attachSource(currentSourceIdx);
+});
 
 nextSourceBtn.addEventListener('click', function(){
   if(!currentChannel) return;
@@ -1188,6 +1362,82 @@ $('reloadEpgBtn').addEventListener('click', function(){
 $('importM3uBtn').addEventListener('click', function(){ $('m3uFile').click(); });
 $('importEpgBtn').addEventListener('click', function(){ $('epgFile').click(); });
 
+// 代理改动即时保存；正在播放时用新代理重新连当前线路
+proxyInput.addEventListener('change', function(){
+  var v = proxyInput.value.trim();
+  proxyInput.value = v;
+  try{ localStorage.setItem(STORE.proxy, v); }catch(e){}
+  if(currentChannel){
+    attachSource(currentSourceIdx);
+  }else{
+    tip.textContent = v ? '代理已保存，选台后生效' : '代理已关闭';
+  }
+});
+
+/* ================= 输入框下拉预设（仍可自由填写） ================= */
+var comboPop = document.createElement('div');
+comboPop.id = 'comboPop';
+document.body.appendChild(comboPop);
+var comboOwner = null;
+
+function closeCombo(){
+  comboPop.classList.remove('on');
+  comboOwner = null;
+}
+
+function openCombo(btn){
+  var input = $(btn.getAttribute('data-combo'));
+  if(!input) return;
+  var opts = COMBO_PRESETS[input.id] || [];
+  comboPop.textContent = '';
+  opts.forEach(function(o){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'combo-opt';
+    if(input.value.trim() === o.v) b.classList.add('act');
+    b.appendChild(document.createTextNode(o.v || '（不填）'));
+    var sub = document.createElement('span');
+    sub.textContent = o.t;
+    b.appendChild(sub);
+    b.addEventListener('click', function(){
+      input.value = o.v;
+      // 复用既有逻辑：代理走 change（会立刻重连并在 localStorage 落盘），其余走 input
+      input.dispatchEvent(new Event(input.id === 'proxyInput' ? 'change' : 'input', { bubbles:true }));
+      closeCombo();
+      input.focus();
+    });
+    comboPop.appendChild(b);
+  });
+
+  var r = btn.getBoundingClientRect();
+  comboPop.classList.add('on');
+  comboPop.style.left = '0px';
+  comboPop.style.top = '0px';
+  var pw = comboPop.offsetWidth, ph = comboPop.offsetHeight;
+  var left = Math.max(8, Math.min(r.left, window.innerWidth - pw - 8));
+  var top = r.bottom + 4;
+  if(top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 4);
+  comboPop.style.left = left + 'px';
+  comboPop.style.top = top + 'px';
+  comboOwner = input.id;
+}
+
+Array.prototype.forEach.call(document.querySelectorAll('.combo-btn'), function(btn){
+  btn.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    var id = btn.getAttribute('data-combo');
+    if(comboOwner === id && comboPop.classList.contains('on')){ closeCombo(); return; }
+    openCombo(btn);
+  });
+});
+document.addEventListener('click', function(e){
+  if(comboPop.classList.contains('on') && !comboPop.contains(e.target)) closeCombo();
+});
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCombo(); });
+window.addEventListener('resize', closeCombo);
+document.addEventListener('scroll', closeCombo, true);
+
 // 统一的本地文件读取：FileReader 样板只写一次
 function readLocalFile(inputEl, onText, onError){
   var file = inputEl.files && inputEl.files[0];
@@ -1219,6 +1469,7 @@ setInterval(function(){
 
 /* ================= 初始化 ================= */
 initVolume();
+proxyInput.value = getProxy();
 renderSidebar();
 updateSourceBtn();
 
