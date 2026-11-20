@@ -2,54 +2,145 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>IPTV</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:'Helvetica Neue',Arial,sans-serif}
-body{background:#141414;color:#fff;padding:20px;max-width:1400px;margin:0 auto;min-height:100vh}
-h1{text-align:center;margin-bottom:16px;font-size:22px;font-weight:500}
-.container{display:grid;grid-template-columns:180px 200px 1fr;gap:16px;height:calc(100vh - 100px)}
-@media(max-width:900px){
-  .container{grid-template-columns:1fr;grid-template-rows:auto auto 1fr}
+html,body{height:100%;background:#141414;color:#fff;overflow:hidden}
+body{display:flex;flex-direction:column;height:100vh}
+h1{text-align:center;padding:8px;font-size:18px;font-weight:500}
+#searchWrap{padding:0 12px 8px}
+#searchInput{
+  width:100%;
+  padding:10px 14px;
+  border:none;
+  border-radius:8px;
+  background:#1c1c1c;
+  color:#fff;
+  outline:none;
+  font-size:15px;
 }
-.col{background:#1c1c1c;border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
-.col h3{padding:10px 14px;border-bottom:1px solid #333;font-size:15px}
-.list{flex:1;overflow-y:auto}
-.item{padding:10px 14px;border-bottom:1px solid #282828;cursor:pointer;transition:0.2s}
-.item:hover{background:#272727}
-.item.active{background:#334466}
-.player-wrap{display:flex;flex-direction:column;gap:10px}
-#video{width:100%;background:#000;border-radius:8px;display:block}
+.main-wrap{display:grid;grid-template-columns:300px 1fr;gap:12px;flex:1;padding:0 12px 12px;min-height:0}
+@media(max-width:900px){
+  .main-wrap{grid-template-columns:1fr;grid-template-rows:30vh 1fr}
+}
+#sidebar{
+  background:#1c1c1c;border-radius:8px;overflow-y:auto;overflow-x:hidden;
+  display:flex;flex-direction:column;min-height:0
+}
+.group-title{
+  padding:12px 14px;
+  border-bottom:1px solid #282828;
+  cursor:pointer;
+  display:flex;justify-content:space-between;align-items:center;
+  transition:0.2s
+}
+.group-title:hover{background:#272727}
+.group-title.active{background:#222}
+.group-channels{
+  overflow:hidden;
+  max-height:0;
+  transition:max-height 0.25s ease
+}
+.group-channels.open{
+  max-height:2000px
+}
+.channel-item{
+  padding:10px 14px 10px 24px;
+  border-bottom:1px solid #252525;
+  cursor:pointer;
+  transition:0.2s
+}
+.channel-item:hover{background:#272727}
+.channel-item.active{background:#334466}
+.player-wrap{display:flex;flex-direction:column;gap:8px;min-height:0}
+#video{width:100%;height:100%;background:#000;border-radius:8px;display:block;object-fit:contain}
+.video-box{flex:1;min-height:0}
 #tip{color:#aaa;font-size:14px;min-height:20px;text-align:center}
+#epgInfo{
+  background:#222;
+  padding:10px 14px;
+  border-radius:8px;
+  font-size:14px;
+  color:#ddd;
+}
+#epgList{
+  max-height:120px;
+  overflow-y:auto;
+  background:#1a1a1a;
+  border-radius:6px;
+  padding:6px;
+}
+.epg-item{
+  padding:4px 6px;
+  font-size:13px;
+  color:#bbb;
+  border-bottom:1px solid #252525;
+}
+.epg-item.now{
+  color:#48a0ff;
+  font-weight:bold;
+}
 </style>
 </head>
 <body>
 <h1>IPTV</h1>
-<div class="container">
-  <div class="col">
-    <h3>分组</h3>
-    <div id="groupList" class="list"></div>
-  </div>
-  <div class="col">
-    <h3>频道</h3>
-    <div id="channelList" class="list"></div>
-  </div>
+<div id="searchWrap">
+  <input id="searchInput" placeholder="🔍 搜索频道名称...">
+</div>
+<div class="main-wrap">
+  <div id="sidebar"></div>
   <div class="player-wrap">
     <div id="tip"></div>
-    <video id="video" controls></video>
+    <div id="epgInfo">EPG加载中...</div>
+    <div id="epgList"></div>
+    <div class="video-box">
+      <video id="video" controls></video>
+    </div>
   </div>
 </div>
 
 <script>
 const video = document.getElementById('video');
-const groupListEl = document.getElementById('groupList');
-const channelListEl = document.getElementById('channelList');
+const sidebarEl = document.getElementById('sidebar');
 const tip = document.getElementById('tip');
+const epgInfoEl = document.getElementById('epgInfo');
+const epgListEl = document.getElementById('epgList');
+const searchInput = document.getElementById('searchInput');
+
+// ========== 配置区 ==========
+const M3U_URL = "https://m3u.x-zod.online";
+const EPG_URL = "https://epg.x-zod.online";
+// 频道映射：m3u频道名 -> epg.zsdc.eu.org/t.xml 内的channel-id，按需修改
+const CHANNEL_MAP = {
+  "CCTV-1": "cctv1",
+  "CCTV-2": "cctv2",
+  "CCTV-3": "cctv3",
+  "CCTV-4": "cctv4",
+  "CCTV-5": "cctv5",
+  "CCTV-6": "cctv6",
+  "CCTV-7": "cctv7",
+  "CCTV-8": "cctv8",
+  "CCTV-9": "cctv9",
+  "CCTV-10": "cctv10",
+  "CCTV-11": "cctv11",
+  "CCTV-12": "cctv12",
+  "湖南卫视": "hunan",
+  "浙江卫视": "zhejiang",
+  "东方卫视": "dongfang",
+  "江苏卫视": "jiangsu",
+  "广东卫视": "guangdong"
+};
+// ===========================
+
 let hls = null;
 let selectedGroupIdx = -1;
 let selectedChIdx = -1;
 let groupData = [];
+let rawGroupData = [];
+let epgData = {};
+let lastPlay = null;
 
 function destroyHls(){
   if(hls){
@@ -58,29 +149,24 @@ function destroyHls(){
   }
 }
 
-// 解析标准iptv m3u，提取 group-title、频道名、播放地址
+// 解析m3u
 function parseM3u(text){
   const result = [];
   const lines = text.split(/\r?\n/);
   let currentGroup = "默认分组";
   let channelName = "";
   let url = "";
-
   for(let i=0; i<lines.length; i++){
     const line = lines[i].trim();
     if(!line) continue;
     if(line.startsWith("#EXTM3U")) continue;
-
     if(line.startsWith("#EXTINF:")){
-      // 提取group-title
       const gMatch = line.match(/group-title="([^"]+)"/);
       if(gMatch) currentGroup = gMatch[1];
-      // 提取频道名称，逗号后面
       const nameMatch = line.match(/,(.+)$/);
       channelName = nameMatch ? nameMatch[1] : "未知频道";
     }else if(!line.startsWith("#")){
       url = line;
-      // 找分组是否已经存在
       let group = result.find(g=>g.groupName === currentGroup);
       if(!group){
         group = {groupName:currentGroup, channels:[]};
@@ -94,50 +180,122 @@ function parseM3u(text){
   return result;
 }
 
-function renderGroups(){
-  groupListEl.innerHTML = "";
-  groupData.forEach((g, idx)=>{
-    const div = document.createElement('div');
-    div.className = "item" + (idx===selectedGroupIdx?" active":"");
-    div.innerText = g.groupName;
-    div.onclick = ()=>selectGroup(idx);
-    groupListEl.appendChild(div);
+// 【修改】新EPG是普通xml，非gz压缩包，直接text读取
+async function loadEPG(){
+  try{
+    const res = await fetch(EPG_URL);
+    const text = await res.text();
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(text, "text/xml");
+    const programmes = xmlDoc.querySelectorAll("programme");
+    epgData = {};
+    programmes.forEach(pg=>{
+      const chId = pg.getAttribute("channel");
+      const start = pg.getAttribute("start");
+      const stop = pg.getAttribute("stop");
+      const title = pg.querySelector("title")?.textContent || "";
+      const desc = pg.querySelector("desc")?.textContent || "";
+      if(!epgData[chId]) epgData[chId] = [];
+      epgData[chId].push({start, stop, title, desc});
+    })
+    epgInfoEl.textContent = "EPG就绪";
+  }catch(e){
+    epgInfoEl.textContent = "EPG加载失败";
+    console.error("EPG error:",e);
+  }
+}
+
+// 根据频道名，拿到EPG ID
+function getEpgChannelId(chName){
+  if(CHANNEL_MAP[chName]) return CHANNEL_MAP[chName];
+  for(const key in CHANNEL_MAP){
+    if(chName.includes(key)) return CHANNEL_MAP[key];
+  }
+  return null;
+}
+
+// 获取当前频道全部节目单
+function getChannelEpgList(chName){
+  const cid = getEpgChannelId(chName);
+  if(!cid || !epgData[cid]) return [];
+  const list = epgData[cid].map(item=>{
+    return {
+      ...item,
+      startDate: new Date(item.start),
+      stopDate: new Date(item.stop)
+    }
+  }).sort((a,b)=>a.startDate - b.startDate);
+  return list;
+}
+
+// 渲染EPG节目单
+function renderEpg(chName){
+  const list = getChannelEpgList(chName);
+  epgListEl.innerHTML = "";
+  if(list.length === 0){
+    epgInfoEl.textContent = `【${chName}】暂无EPG节目`;
+    return;
+  }
+  const now = new Date();
+  let currentTitle = "";
+  list.forEach(p=>{
+    const isNow = now >= p.startDate && now <= p.stopDate;
+    if(isNow) currentTitle = p.title;
+    const timeStr = p.startDate.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
+      + " - " + p.stopDate.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    const div = document.createElement("div");
+    div.className = "epg-item" + (isNow ? " now" : "");
+    div.innerText = `${timeStr} | ${p.title}`;
+    epgListEl.appendChild(div);
+  })
+  epgInfoEl.textContent = `【${chName}】当前：${currentTitle || "暂无正在播放节目"}`;
+}
+
+// 渲染侧边栏（分组折叠菜单）
+function renderSidebar(){
+  sidebarEl.innerHTML = "";
+  groupData.forEach((g, gIdx)=>{
+    const groupWrap = document.createElement("div");
+    const groupTitle = document.createElement("div");
+    groupTitle.className = "group-title";
+    groupTitle.innerHTML = `${g.groupName} <span>▼</span>`;
+    const channelWrap = document.createElement("div");
+    channelWrap.className = "group-channels";
+
+    g.channels.forEach((ch, chIdx)=>{
+      const chDiv = document.createElement("div");
+      chDiv.className = "channel-item" + (gIdx===selectedGroupIdx && chIdx===selectedChIdx ? " active":"");
+      chDiv.innerText = ch.name;
+      chDiv.onclick = ()=>{
+        selectedGroupIdx = gIdx;
+        selectedChIdx = chIdx;
+        playChannel(gIdx, chIdx);
+      }
+      channelWrap.appendChild(chDiv);
+    })
+    groupTitle.onclick = ()=>{
+      channelWrap.classList.toggle("open");
+    }
+    groupWrap.appendChild(groupTitle);
+    groupWrap.appendChild(channelWrap);
+    sidebarEl.appendChild(groupWrap);
   })
 }
 
-function renderChannels(){
-  channelListEl.innerHTML = "";
-  if(selectedGroupIdx <0) return;
-  const chs = groupData[selectedGroupIdx].channels;
-  chs.forEach((ch, idx)=>{
-    const div = document.createElement('div');
-    div.className = "item" + (idx===selectedChIdx?" active":"");
-    div.innerText = ch.name;
-    div.onclick = ()=>playChannel(idx);
-    channelListEl.appendChild(div);
-  })
-}
-
-function selectGroup(idx){
-  selectedGroupIdx = idx;
-  selectedChIdx = -1;
-  destroyHls();
-  video.src = "";
-  tip.textContent = "";
-  renderGroups();
-  renderChannels();
-}
-
-function playChannel(idx){
-  if(selectedGroupIdx <0) return;
-  const chs = groupData[selectedGroupIdx].channels;
-  if(idx <0 || idx >= chs.length) return;
-  selectedChIdx = idx;
-  const ch = chs[idx];
+function playChannel(gIdx, chIdx){
+  const chs = groupData[gIdx].channels;
+  if(chIdx <0 || chIdx >= chs.length) return;
+  selectedGroupIdx = gIdx;
+  selectedChIdx = chIdx;
+  const ch = chs[chIdx];
   destroyHls();
   tip.textContent = `加载：${ch.name}`;
-  renderGroups();
-  renderChannels();
+  renderEpg(ch.name);
+  renderSidebar();
+  // 保存记忆
+  lastPlay = {groupIdx:gIdx, chIdx:chIdx, name:ch.name};
+  localStorage.setItem("iptv_lastplay", JSON.stringify(lastPlay));
+
   const src = ch.url;
   if(Hls.isSupported()){
     hls = new Hls();
@@ -159,23 +317,54 @@ function playChannel(idx){
   }
 }
 
-// 拉取同目录下 tv.m3u
+// 搜索过滤频道
+function filterChannels(keyword){
+  if(!keyword.trim()){
+    groupData = JSON.parse(JSON.stringify(rawGroupData));
+    renderSidebar();
+    return;
+  }
+  const kw = keyword.toLowerCase();
+  groupData = rawGroupData.map(g=>{
+    return {
+      ...g,
+      channels: g.channels.filter(ch=>ch.name.toLowerCase().includes(kw))
+    }
+  }).filter(g=>g.channels.length>0);
+  renderSidebar();
+}
+
 async function loadM3u(){
   try{
-    const res = await fetch("./tv.m3u");
-    if(!res.ok) throw new Error("读取tv.m3u失败");
+    const res = await fetch(M3U_URL);
+    if(!res.ok) throw new Error("读取m3u失败 status:"+res.status);
     const text = await res.text();
-    groupData = parseM3u(text);
-    renderGroups();
-    renderChannels();
+    rawGroupData = parseM3u(text);
+    groupData = JSON.parse(JSON.stringify(rawGroupData));
+    renderSidebar();
     tip.textContent = "加载频道列表完成";
+    // 恢复上次播放
+    const saved = localStorage.getItem("iptv_lastplay");
+    if(saved){
+      const lp = JSON.parse(saved);
+      setTimeout(()=>{
+        if(rawGroupData[lp.groupIdx]?.channels[lp.chIdx]){
+          playChannel(lp.groupIdx, lp.chIdx);
+        }
+      },300)
+    }
   }catch(err){
-    tip.textContent = "读取tv.m3u出错：" + err.message;
+    tip.textContent = "读取m3u出错：" + err.message;
     console.error(err);
   }
 }
 
+searchInput.addEventListener("input", e=>{
+  filterChannels(e.target.value);
+})
+
 loadM3u();
+loadEPG();
 </script>
 </body>
 </html>
