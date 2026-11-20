@@ -10,17 +10,50 @@
 html,body{height:100%;background:#141414;color:#fff;overflow:hidden}
 body{display:flex;flex-direction:column;height:100vh}
 h1{text-align:center;padding:8px;font-size:18px;font-weight:500}
-#searchWrap{padding:0 12px 8px}
-#searchInput{
+
+/* 顶部一行容器：搜索、M3U、EPG 三个输入框，等宽 */
+.top-row{
+  display:grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap:10px;
+  padding:0 12px 10px;
+}
+.top-row input{
   width:100%;
-  padding:10px 14px;
+  padding:9px 12px;
   border:none;
   border-radius:8px;
   background:#1c1c1c;
   color:#fff;
   outline:none;
-  font-size:15px;
+  font-size:14px;
 }
+/* 移动端竖屏改成三行 */
+@media (max-width:768px){
+  .top-row{
+    grid-template-columns: 1fr;
+    gap:8px;
+  }
+}
+
+/* 按钮行 */
+.btn-row{
+  display:flex;
+  gap:10px;
+  padding:0 12px 12px;
+}
+.btn-row button{
+  flex:1;
+  padding:9px;
+  border:none;
+  border-radius:8px;
+  background:#3355aa;
+  color:#fff;
+  cursor:pointer;
+  font-size:14px;
+}
+.btn-row button:hover{background:#4466bb}
+
 .main-wrap{display:grid;grid-template-columns:300px 1fr;gap:12px;flex:1;padding:0 12px 12px;min-height:0}
 @media(max-width:900px){
   .main-wrap{grid-template-columns:1fr;grid-template-rows:30vh 1fr}
@@ -82,56 +115,22 @@ h1{text-align:center;padding:8px;font-size:18px;font-weight:500}
   color:#48a0ff;
   font-weight:bold;
 }
-/* 源配置面板 */
-#sourcePanel{
-  padding:10px 12px;
-  background:#1c1c1c;
-  margin:0 12px 12px;
-  border-radius:8px;
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-}
-#sourcePanel label{font-size:14px;color:#ccc}
-#sourcePanel input{
-  width:100%;
-  padding:8px 10px;
-  border:none;
-  border-radius:6px;
-  background:#252525;
-  color:#fff;
-  outline:none;
-  font-size:13px;
-}
-#sourcePanel .btn-row{display:flex;gap:8px}
-#sourcePanel button{
-  flex:1;
-  padding:8px;
-  border:none;
-  border-radius:6px;
-  background:#3355aa;
-  color:#fff;
-  cursor:pointer;
-}
-#sourcePanel button:hover{background:#4466bb}
 </style>
 </head>
 <body>
 <h1>IPTV</h1>
-<div id="searchWrap">
+<!-- 顶部三个输入框 一行等宽 / 移动端竖排三行 -->
+<div class="top-row">
   <input id="searchInput" placeholder="🔍 搜索频道名称...">
+  <input id="m3uInput" placeholder="M3U 源地址">
+  <input id="epgInput" placeholder="EPG 源地址（xml）">
 </div>
-<!-- 源配置面板 -->
-<div id="sourcePanel">
-  <label>M3U 源地址</label>
-  <input id="m3uInput" placeholder="填写m3u链接">
-  <label>EPG 源地址（xml）</label>
-  <input id="epgInput" placeholder="填写epg xml链接">
-  <div class="btn-row">
-    <button id="loadSourceBtn">加载源</button>
-    <button id="resetSourceBtn">恢复默认源</button>
-  </div>
+<!-- 按钮行 -->
+<div class="btn-row">
+  <button id="loadSourceBtn">加载源</button>
+  <button id="resetSourceBtn">恢复默认源</button>
 </div>
+
 <div class="main-wrap">
   <div id="sidebar"></div>
   <div class="player-wrap">
@@ -157,7 +156,6 @@ const loadSourceBtn = document.getElementById('loadSourceBtn');
 const resetSourceBtn = document.getElementById('resetSourceBtn');
 
 // ========== 配置区 ==========
-const PROXY_URL = "https://proxy.x-zod.online/?url=";
 const DEFAULT_M3U = "https://guovin.github.io/iptv-api/result.m3u";
 const DEFAULT_EPG = "https://epg.zsdc.eu.org/t.xml";
 // 频道映射：【M3U内频道名】 -> t.xml 里面的 channel id
@@ -199,11 +197,6 @@ function destroyHls(){
   }
 }
 
-// 拼接代理地址
-function getProxyUrl(rawUrl){
-  return PROXY_URL + encodeURIComponent(rawUrl);
-}
-
 // 解析m3u
 function parseM3u(text){
   const result = [];
@@ -235,10 +228,10 @@ function parseM3u(text){
   return result;
 }
 
-// 加载EPG（普通xml，非gz）
+// 加载EPG（直接请求原始链接）
 async function loadEPG(epgRawUrl){
   try{
-    const res = await fetch(getProxyUrl(epgRawUrl));
+    const res = await fetch(epgRawUrl);
     const text = await res.text();
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(text, "text/xml");
@@ -390,7 +383,7 @@ function filterChannels(keyword){
 
 async function loadM3uList(m3uRawUrl){
   try{
-    const res = await fetch(getProxyUrl(m3uRawUrl));
+    const res = await fetch(m3uRawUrl);
     if(!res.ok) throw new Error("读取m3u失败 status:"+res.status);
     const text = await res.text();
     rawGroupData = parseM3u(text);
