@@ -360,6 +360,15 @@ function portOf(u){
 function isLocalProxy(p){
   return /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\]|0\.0\.0\.0)(:|\/|$)/i.test(p || '');
 }
+// 本机代理是否活着：探一下它的根路径（local-proxy.js 会返回静态页）
+var proxyStatus = null;     // 'ok' | 'fail' | null(未探)
+function probeProxy(p){
+  if(!isLocalProxy(p)){ proxyStatus = null; return Promise.resolve(true); }
+  var base = p.replace(/\/+$/, '').replace(/\/proxy([?#].*)?$/i, '');
+  return fetch(base + '/', { cache: 'no-store', signal: AbortSignal.timeout(4000) })
+    .then(function(r){ proxyStatus = r.ok ? 'ok' : 'fail'; return r.ok; })
+    .catch(function(){ proxyStatus = 'fail'; return false; });
+}
 
 /* ================= 状态 ================= */
 var rawGroupData = [];          // 原始分组数据（只解析一次）
@@ -998,6 +1007,12 @@ function attachSource(idx){
   stopCurrentStream(false);
   offerLocalProxy(false);
 
+  // 本机代理没起来时不必干等 12 秒，直接说明原因
+  if(isLocalProxy(getProxy()) && proxyStatus === 'fail'){
+    onSourceFail('本机代理连不上（node local-proxy.js 未运行，或 8787 被占用）');
+    return;
+  }
+
   tip.textContent = '加载：' + ch.name + (ch.sources.length > 1 ? '（线路 ' + (idx + 1) + '/' + ch.sources.length + '）' : '');
 
   if(/\.flv(\?|#|$)/i.test(url)){
@@ -1073,7 +1088,9 @@ function attachSource(idx){
     });
 
     loadTimer = setTimeout(function(){
-      if(token === attachToken && !manifestOk) onSourceFail('加载超时（12 秒）');
+      if(token === attachToken && !manifestOk){
+        onSourceFail('加载超时（12 秒）' + (isLocalProxy(getProxy()) ? '，本机代理没有返回清单' : '，清单没拿到'));
+      }
     }, 12000);
   }else{
     video.src = playUrl;
@@ -1105,6 +1122,7 @@ function onSourceFail(msg){
     var px = getProxy();
     if(!px && /网络|CORS|跨域|超时/.test(msg)) tail += '，浏览器不允许网页直连这些流，通常是源站没给 CORS 头——填一个代理地址即可解决';
     else if(px && !isLocalProxy(px) && /403/.test(msg)) tail += '。这是源站对 Cloudflare 出口 IP 的拦截（不是端口问题），点“改用本机代理”走本机宽带出口即可';
+    else if(px && isLocalProxy(px) && /代理|超时|网络/.test(msg)) tail += '。先确认 node local-proxy.js 仍在运行（浏览器打开 http://127.0.0.1:8787/ 能出页面就说明在跑）';
     tip.textContent = msg + tail;
     switching = false;
   }
@@ -1367,11 +1385,17 @@ proxyInput.addEventListener('change', function(){
   var v = proxyInput.value.trim();
   proxyInput.value = v;
   try{ localStorage.setItem(STORE.proxy, v); }catch(e){}
-  if(currentChannel){
-    attachSource(currentSourceIdx);
-  }else{
-    tip.textContent = v ? '代理已保存，选台后生效' : '代理已关闭';
-  }
+  probeProxy(v).then(function(ok){
+    if(isLocalProxy(v) && !ok){
+      tip.textContent = '本机代理无响应：先在本目录运行 node local-proxy.js（默认端口 8787）';
+      return;
+    }
+    if(currentChannel){
+      attachSource(currentSourceIdx);
+    }else{
+      tip.textContent = v ? '代理已保存，选台后生效' : '代理已关闭';
+    }
+  });
 });
 
 /* ================= 输入框下拉预设（仍可自由填写） ================= */
@@ -1470,6 +1494,7 @@ setInterval(function(){
 /* ================= 初始化 ================= */
 initVolume();
 proxyInput.value = getProxy();
+probeProxy(proxyInput.value);
 renderSidebar();
 updateSourceBtn();
 
